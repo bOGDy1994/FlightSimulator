@@ -310,5 +310,5 @@ void draw() {
       gameState = GameState.STOPPED;
     }
   }
-  delay(100);
+  delay(50);
 }

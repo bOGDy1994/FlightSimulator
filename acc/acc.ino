@@ -249,5 +249,5 @@ void loop() {
     else if ((source & 0x08) == 0x08)
       tapHandler();
   }
-  //delay(100); //for visibility
+  delay(100); //for visibility
 }
