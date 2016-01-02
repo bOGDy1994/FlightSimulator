@@ -1,4 +1,4 @@
-import processing.serial.*; //<>// //<>//
+import processing.serial.*; //<>// //<>// //<>//
 import java.util.Iterator;
 
 /*
@@ -71,7 +71,7 @@ enum GameState {
 }
 
 enum InputType {
-  ACCELERATION, ORIENTATION, TAP,START;
+  ACCELERATION, ORIENTATION, TAP, DOUBLETAP;
 }
 
 enum MoveType {
@@ -85,35 +85,30 @@ ArrayList<Asteroid> asteroids;
 int gameStep;
 PImage shipImage;
 PImage asteroidImage;
-boolean start;
 
 void configurePort() {
   communicationPort = new Serial(this, Serial.list()[Serial.list().length - 1], 9600);
   communicationPort.bufferUntil('\n'); //TODO may need to remove this
 }
 
-InputType determineInputType(String inputString) 
-{
-  if(inputString.contains("Accelerometer"))
-  {
-    return InputType.START;
-  }
-  else
-    if (inputString.contains("orientation")) 
-    {
-      return InputType.ORIENTATION;
-    } 
-    else 
-    {
-      if ((inputString.contains("Tap")) || (inputString.contains("tap"))) 
-      {
+InputType determineInputType(String inputString) {
+  if (inputString.contains("orientation")) {
+    return InputType.ORIENTATION;
+  } else {
+    if ((inputString.contains("Tap")) || (inputString.contains("tap"))) {
+      if ((inputString.contains("single")) || (inputString.contains("Single"))) {
         return InputType.TAP;
+      } 
+      if ((inputString.contains("double")) || (inputString.contains("Double"))) {
+        return InputType.DOUBLETAP;
       }
-      else 
-    {
-      return InputType.ACCELERATION;
     }
-    }
+  }
+  return InputType.ACCELERATION;
+}
+
+boolean checkInputDataIntegrity(String inputString) {
+  return split(inputString, " ").length == 3;
 }
 
 float[] parseInputForAcceleration(String inputString) {
@@ -168,7 +163,7 @@ void updateCurrentCoordinates(float[] inputAcceleration) {
   case FORWARD:
     ship.y -= ship.speed;
     if (isShipOutOfScreen() == false) {
-      rect(ship.x, ship.y + ship.speed, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
+      rect(ship.x - 1, ship.y + ship.speed - 1, Ship.SHIP_WIDTH + 1, Ship.SHIP_HEIGHT + 1);
       image(shipImage, ship.x, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
       calculateShipBlocks();
     }
@@ -176,7 +171,7 @@ void updateCurrentCoordinates(float[] inputAcceleration) {
   case BACKWARD:
     ship.y += ship.speed;
     if (isShipOutOfScreen() == false) {
-      rect(ship.x, ship.y - ship.speed, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
+      rect(ship.x - 1, ship.y - ship.speed - 1, Ship.SHIP_WIDTH + 1, Ship.SHIP_HEIGHT + 1);
       image(shipImage, ship.x, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
       calculateShipBlocks();
     } 
@@ -184,7 +179,7 @@ void updateCurrentCoordinates(float[] inputAcceleration) {
   case RIGHT:
     ship.x += ship.speed;
     if (isShipOutOfScreen() == false) {
-      rect(ship.x - ship.speed, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
+      rect(ship.x - ship.speed - 1, ship.y - 1, Ship.SHIP_WIDTH + 1, Ship.SHIP_HEIGHT + 1);
       image(shipImage, ship.x, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
       calculateShipBlocks();
     }
@@ -192,7 +187,7 @@ void updateCurrentCoordinates(float[] inputAcceleration) {
   case LEFT:
     ship.x -= ship.speed;
     if (isShipOutOfScreen() == false) {
-      rect(ship.x + ship.speed, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
+      rect(ship.x + ship.speed - 1, ship.y - 1, Ship.SHIP_WIDTH + 1, Ship.SHIP_HEIGHT + 1);
       image(shipImage, ship.x, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
       calculateShipBlocks();
     }
@@ -217,9 +212,8 @@ boolean detectCollision() {
 }
 
 void handleAcceleration(String inputString) {
-  updateCurrentCoordinates(parseInputForAcceleration(inputString));
-  if (detectCollision() == true) {
-    gameState = GameState.STOPPED;
+  if (checkInputDataIntegrity(inputString)) {
+    updateCurrentCoordinates(parseInputForAcceleration(inputString));
   }
 }
 
@@ -230,14 +224,17 @@ void handleTap() {
   ship.speed += DEFAULT_SHIP_SPEED;
 }
 
+void handleDoubleTap() {
+  ship.speed -= DEFAULT_SHIP_SPEED;
+}
+
 void readInput() {
   //String inputString = communicationPort.readStringUntil('\n');
   String inputString = communicationPort.readString();
   System.out.println(inputString);
   if (inputString != null) {
     inputString = trim(inputString);
-      InputType inputType = determineInputType(inputString);
-      //if(start)
+    InputType inputType = determineInputType(inputString);
     switch(inputType) {
     case ACCELERATION:
       handleAcceleration(inputString);
@@ -248,11 +245,10 @@ void readInput() {
     case TAP:
       handleTap();
       break;
-    case START:
+    case DOUBLETAP:
+      handleDoubleTap();
       break;
     }
-    if(inputType == InputType.START)
-      start = true;
   }
 }
 
@@ -303,14 +299,16 @@ void setup() {
   image(shipImage, ship.x, ship.y, Ship.SHIP_WIDTH, Ship.SHIP_HEIGHT);
   asteroids = new ArrayList<Asteroid>();
   gameStep = 0;
-  start = false;
 }
 
 void draw() {
   if (gameState == GameState.RUNNING) {
-    updateAsteroids(); //<>//
+    updateAsteroids();
     generateAsteroid();
     readInput();
+    if (detectCollision() == true) {
+      gameState = GameState.STOPPED;
+    }
   }
   delay(100);
 }
