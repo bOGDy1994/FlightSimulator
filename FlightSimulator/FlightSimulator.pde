@@ -218,6 +218,7 @@ void handleAcceleration(String inputString) {
 }
 
 void handleOrientation() {
+  // do nothing
 }
 
 void handleTap() {
@@ -225,7 +226,9 @@ void handleTap() {
 }
 
 void handleDoubleTap() {
-  ship.speed -= DEFAULT_SHIP_SPEED;
+  if (ship.speed > 0) {
+    ship.speed -= DEFAULT_SHIP_SPEED;
+  }
 }
 
 void readInput() {
