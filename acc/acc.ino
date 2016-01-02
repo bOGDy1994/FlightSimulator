@@ -1,6 +1,7 @@
 //working with accelerometer MMA8452 KISS
 
 #include <Wire.h>
+#include "registers.h"
 
 const byte scale = 2; //the scale on which we are working
 const byte dataRate = 0;
@@ -14,7 +15,6 @@ const byte dataRate = 0;
 
 int int1Pin = 2;
 int int2Pin = 3;
-volatile int test = 0;
 
 int accelerationCount[3];
 float accelerationG[3];
@@ -62,14 +62,14 @@ void MMA8452standby()
 //consult the sheet for additional information
 //we need this register to make the sensor to be in standby mode to modify it's contents
 {
-  byte c = readRegister(0x2A);
-  writeRegister(0x2A, c & ~ (0x2A));
+  byte c = readRegister(CTRL_REG1);
+  writeRegister(CTRL_REG1, c & ~ (0x2A));
 }
 
 void MMA8452Active()
 {
-  byte c = readRegister(0x2A);
-  writeRegister(0x2A , c | 0x01);
+  byte c = readRegister(CTRL_REG1);
+  writeRegister(CTRL_REG1 , c | 0x01);
 }
 
 
@@ -77,34 +77,34 @@ void initMMA8452(byte fsr, byte dataRate)
 {
   //we set the scaling bits
   if((fsr == 2)||(fsr == 4)||(fsr == 8))
-    writeRegister(0x0E, fsr >> 2);
+    writeRegister(XYZ_DATA_CFG, fsr >> 2);
   else
-    writeRegister(0x0E, 0);
+    writeRegister(XYZ_DATA_CFG, 0);
   //we set the data rate
-  writeRegister(0x2A, readRegister(0x2A) & ~ (0x38)); //default rate 1.56Hz
+  writeRegister(CTRL_REG1, readRegister(CTRL_REG1) & ~ (0x38)); //default rate 1.56Hz
   if(dataRate <= 7)
-    writeRegister(0x2A, readRegister(0x2A) | (dataRate << 3));
+    writeRegister(CTRL_REG1, readRegister(CTRL_REG1) | (dataRate << 3));
   //Let's set up Portrait/Landscape Functions
 
-  writeRegister(0x11, 0x40); //enable portrait
-  writeRegister(0x13, 0x44); //29 deg z lock(the angle at which the sensor can't detect the change in orientation)
-  writeRegister(0x14, 0x84); //45 deg threeshold for portrait/landscape orientation
-  writeRegister(0x12, 0x50); //debounce counter at 100ms(800Hz)
+  writeRegister(PL_CFG, 0x40); //enable portrait
+  writeRegister(PL_BF_ZCOMP, 0x44); //29 deg z lock(the angle at which the sensor can't detect the change in orientation)
+  writeRegister(P_L_THS_REG, 0x84); //45 deg threeshold for portrait/landscape orientation
+  writeRegister(PL_COUNT, 0x50); //debounce counter at 100ms(800Hz)
 
   //enable single or double tapping
 
-  writeRegister(0x21, 0x7F);//enable tapping on all axes
-  writeRegister(0x23, 0x20);// x thresh at 2g, multiply the value by 0.0625g/LSB to get the threshold
-  writeRegister(0x24, 0x20);// y thresh at 2g, multiply the value by 0.0625g/LSB to get the threshold
-  writeRegister(0x25, 0x08);// z thresh at .5g, multiply the value by 0.0625g/LSB to get the threshold
-  writeRegister(0x26, 0x30);// 30 ms threeshold for a sampling of 800Hz
-  writeRegister(0x27, 0xA0);// 200 ms between taps minimum
-  writeRegister(0x28, 0xFF);// 318ms max value between taps
+  writeRegister(PULSE_CFG, 0x7F);//enable tapping on all axes
+  writeRegister(PULSE_THSX, 0x20);// x thresh at 2g, multiply the value by 0.0625g/LSB to get the threshold
+  writeRegister(PULSE_THSY, 0x20);// y thresh at 2g, multiply the value by 0.0625g/LSB to get the threshold
+  writeRegister(PULSE_THSZ, 0x08);// z thresh at .5g, multiply the value by 0.0625g/LSB to get the threshold
+  writeRegister(PULSE_TMLT, 0x30);// 30 ms threeshold for a sampling of 800Hz
+  writeRegister(PULSE_TMLT, 0xA0);// 200 ms between taps minimum
+  writeRegister(PULSE_WIND, 0xFF);// 318ms max value between taps
 
   //enable interrupts
-  writeRegister(0x2C, 0x02);//active high, push-pull interrupts
-  writeRegister(0x2D, 0x19);//data ready and portrait/landscape interrupt
-  writeRegister(0x2E, 0x01);//data ready interrupt on INT1, Portrait/Landscape interrupt on INT2
+  writeRegister(CTRL_REG3, 0x02);//active high, push-pull interrupts
+  writeRegister(CTRL_REG4, 0x19);//data ready and portrait/landscape interrupt
+  writeRegister(CTRL_REG5, 0x01);//data ready interrupt on INT1, Portrait/Landscape interrupt on INT2
 
   MMA8452Active();
 }
@@ -112,7 +112,7 @@ void initMMA8452(byte fsr, byte dataRate)
 
 void portraitLandscapeHandler()
 {
-  byte pl = readRegister(0x10);
+  byte pl = readRegister(PL_STATUS);
   switch((pl & 0x06) >> 1)
   {
     case 0 :
@@ -140,7 +140,7 @@ void portraitLandscapeHandler()
 void readAccelerationData(int * destination)
 {
   byte rawData[6];  // x/y/z accel register data stored here
-  readRegisters(0x01, 6, &rawData[0]);  // Read the six raw data registers into data array
+  readRegisters(OUT_X_MSB, 6, &rawData[0]);  // Read the six raw data registers into data array
   
   /* loop to calculate 12-bit ADC and g value for each axis */
   for (int i=0; i<6; i+=2)
@@ -159,7 +159,7 @@ void readAccelerationData(int * destination)
    axis. */
 void tapHandler()
 {
-  byte source = readRegister(0x22);  // Reads the PULSE_SRC register
+  byte source = readRegister(PULSE_SRC);  // Reads the PULSE_SRC register
   
   if ((source & 0x10)==0x10)  // If AxX bit is set
   {
@@ -201,7 +201,6 @@ void tapHandler()
 void setup() {
   // put your setup code here, to run once:
   Wire.begin();
-  byte c;
   Serial.begin(9600);//start the serial comunication with the pc
   pinMode(int1Pin, INPUT);
   digitalWrite(int1Pin, LOW);
@@ -209,7 +208,8 @@ void setup() {
   digitalWrite(int2Pin, LOW);
 
   //let's read the WHO_AM_I register for a test of communication
-  c = readRegister(0x0D);
+  byte c;
+  c = readRegister(WHO_AM_I);
   if(c == 0x2A)
   {
     initMMA8452(scale, dataRate);
@@ -227,30 +227,27 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   //if int 1 is true, new Data baby
-
-  static byte source;
-  
   if(digitalRead(int1Pin) == 1)
   {
-    readAccelerationData(accelerationCount);
-    for(int i = 0; i < 3; i++)
+      /* print out values */
+      readAccelerationData(accelerationCount);
+      for(int i = 0; i < 3; i++)
       accelerationG[i] = (float) accelerationCount[i]/((1<<12)/ 2 * scale);
-     /* print out values */
-    for (int i=0; i<3; i++)
-    {
-      Serial.print(accelerationG[i], 4);  // Print g values
-      Serial.print(" ");  // spaces in between axes
-    }
-     //Serial.print("\t\t");
-    Serial.println();
+      for (int i=0; i<3; i++)
+        {
+          Serial.print(accelerationG[i], 4);  // Print g values
+          Serial.print(" ");  // tabs in between axes
+        }
+      Serial.println();
   }
   if(digitalRead(int2Pin) == 1)
   {
-    source = readRegister(0x0C);
+    static byte source;
+    source = readRegister(INT_SOURCE);
     if((source & 0x10) == 0x10)
       portraitLandscapeHandler();
     else if ((source & 0x08) == 0x08)
       tapHandler();
   }
-  delay(50); //for visibility
+  //delay(100); //for visibility
 }
